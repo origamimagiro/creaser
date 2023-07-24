@@ -15,6 +15,7 @@ const MAIN = {
         B: "black",
         C: "green",
         R: "red",
+        S: "blue",
     },
     size: {
         b: 50,
@@ -81,9 +82,8 @@ const MAIN = {
             if (property == undefined) { return; }
         }
         const Vi = M.normalize_points(V_org);
-        const L = EVi.map((P) => M.expand(P, Vi));
-        const eps = M.min_line_length(L) / M.EPS;
-        const [C, VC] = MAIN.V_2_C_VC(Vi, eps);
+        const EPS = 10**(-8);
+        const [C, VC] = MAIN.V_2_C_VC(Vi, EPS);
         const Xo = [];
         const Do = [];
         for (let i = 0; i < EVi.length; ++i) {
@@ -100,7 +100,7 @@ const MAIN = {
         for (let i = 1; i < Xo.length; ++i) {
             const [x1, i1] = Xo[i - 1];
             const [x2, i2] = Xo[i];
-            if (Math.abs(x2 - x1) > 10000*M.FLOAT_EPS) {
+            if (Math.abs(x2 - x1) > EPS) {
                 X.push(x2);
             }
             EL[i2][0] = X.length - 1;
@@ -110,12 +110,11 @@ const MAIN = {
         for (let i = 1; i < Do.length; ++i) {
             const [d1, i1] = Do[i - 1];
             const [d2, i2] = Do[i];
-            if (Math.abs(d2 - d1) > 10000*M.FLOAT_EPS) {
+            if (Math.abs(d2 - d1) > EPS) {
                 D.push(d2);
             }
             EL[i2][1] = D.length - 1;
         }
-        const EPS = 10000*M.FLOAT_EPS;
         const ES = EL.map(([xi, di]) => (
             ((Math.abs(X[xi]) < EPS) ||
             (Math.abs(X[xi] - 1) < EPS)) &&
@@ -124,6 +123,7 @@ const MAIN = {
         ));
         const Y = X.map(x => (1 - x*x)**0.5);
         const target = {C, VC, X, Y, D, EL, ES, EV: EVi, EA: EAi};
+        console.log(target);
         MAIN.update(target, SVG.clear("input"));
         const FOLD = {
             C: [0, 1],
@@ -151,14 +151,16 @@ const MAIN = {
                 MAIN.update(target, SVG.clear("input"));
             } else if (i == FS.length) {
                 console.log("looking for next line...");
-                const FOLD2 = MAIN.get_next(target, FS[i - 1], eps);
+                const FOLD2 = MAIN.get_next(target, FS[i - 1], EPS);
                 if (FOLD2 == undefined) {
                     console.log("no line found!");
                     --i;
                 } else {
-                    console.log("found a new line");
-                    FS.push(FOLD2);
-                    console.log(FOLD2);
+                    if (FOLD2.P != undefined) {
+                        console.log("found a new line");
+                        console.log(FOLD2);
+                        FS.push(FOLD2);
+                    }
                     MAIN.update(FOLD2, SVG.clear("output"));
                     MAIN.update(target, SVG.clear("input"));
                 }
@@ -187,7 +189,7 @@ const MAIN = {
         }
         return [C, VC];
     },
-    get_idx: (C, c, eps = 10000*M.FLOAT_EPS) => {
+    get_idx: (C, c, eps) => {
         let [l, r] = [0, C.length];
         while (r - l > 1) {
             const m = (r + l) >> 1;
@@ -210,8 +212,22 @@ const MAIN = {
         const Ci = target.C;
         const VCi = target.VC;
         const EVi = target.EV;
+        const ESi = target.ES;
         const {EL, ES, X, Y, D} = target;
         const {C, VC, EV, EA} = FOLD;
+        let found = false;
+        for (const s of ESi) {
+            if (!s) {
+                found = true;
+                break;
+            }
+        }
+        if (!found) {
+            console.log("All done, no more to crease!");
+            FOLD.P = undefined;
+            FOLD.ES = FOLD.EV.map(() => false);
+            return FOLD;
+        }
         const V = VC.map(c => M.expand(c, C));
         const Vi = VCi.map(c => M.expand(c, Ci));
         const EL_map = new Map();
@@ -225,8 +241,8 @@ const MAIN = {
             }
             out.set(xi, s);
         }
-        let found = undefined;
-        const L = MAIN.get_line(V, EL_map, D, X);
+        found = undefined;
+        const L = MAIN.get_line(V, EL_map, D, X, eps);
         if (L == undefined) { return undefined; }
         const [xi, di, P] = L;
         for (let i = 0; i < EL.length; ++i) {
@@ -237,7 +253,7 @@ const MAIN = {
             }
         }
         const line = [[X[xi], Y[xi]], D[di]];
-        const [EV2, EA2, ES2, V2] = MAIN.EV_EA_V_line_eps_2_EV2_EA2_ES2_V2(EV, EA, V, line);
+        const [EV2, EA2, ES2, V2] = MAIN.EV_EA_V_line_eps_2_EV2_EA2_ES2_V2(EV, EA, V, line, eps);
         const [C2, VC2] = MAIN.V_2_C_VC(V2, eps);
         const FOLD2 = {C: C2, VC: VC2, EV: EV2, EA: EA2, ES: ES2, P};
         return FOLD2;
@@ -259,21 +275,21 @@ const MAIN = {
         });
         SVG.draw_segments(svg, lines, {
             id: "flat_e_boundary", stroke: MAIN.color.R,
-            stroke_width: 1, filter: i => ES[i],
+            stroke_width: 3, filter: i => ES[i],
         });
         if (P != undefined) {
             SVG.draw_points(svg, P.map(i => V[i]), {
-                id: "flat_p", fill: MAIN.color.R, r: 10,
+                id: "flat_p", fill: MAIN.color.S, r: 10,
             });
         }
     },
-    get_line: (P, EL_map, D, X) => {
+    get_line: (P, EL_map, D, X, EPS) => {
         const check = ([[x, y], d]) => {
-            const di = MAIN.get_idx(D, d);
+            const di = MAIN.get_idx(D, d, EPS);
             if (di == undefined) { return; }
             const Xi = EL_map.get(di);
             if (Xi == undefined) { return; }
-            const xi = MAIN.get_idx(X, x);
+            const xi = MAIN.get_idx(X, x, EPS);
             if (xi == undefined) { return; }
             const s = Xi.get(xi);
             if (s == undefined) { return; }
@@ -300,7 +316,9 @@ const MAIN = {
                 }
             }
         }
+        NOTE.start_check("Triples", P);
         for (let i1 = 0; i1 < n; ++i1) {
+            NOTE.check(i1);
             const a = P[i1];
             for (let i2 = i1 + 1; i2 < n; ++i2) {
                 const b = P[i2];
@@ -376,7 +394,7 @@ const MAIN = {
         const p2 = M.sub(p, off);
         return [p1, p2];
     },
-    EV_EA_V_line_eps_2_EV2_EA2_ES2_V2: (EV, EA, V, line, eps = M.FLOAT_EPS) => {
+    EV_EA_V_line_eps_2_EV2_EA2_ES2_V2: (EV, EA, V, line, eps) => {
         // assumes convex faces (or line divides a face into at most two pieces
         const [u, d] = line;
         const [a, b] = MAIN.line_2_coords(line);
@@ -390,8 +408,8 @@ const MAIN = {
         const P = new Set();
         for (let i = 0; i < EV.length; ++i) {
             const [v1, v2, ea, s] = EVA[i];
-            const on1 = (Math.abs(VD[v1]) < 10000*eps);
-            const on2 = (Math.abs(VD[v2]) < 10000*eps);
+            const on1 = (Math.abs(VD[v1]) < eps);
+            const on2 = (Math.abs(VD[v2]) < eps);
             if (on1) { P.add(v1); }
             if (on2) { P.add(v2); }
             if (on1 || on2) { continue; }
