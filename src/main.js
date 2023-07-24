@@ -228,7 +228,7 @@ const MAIN = {
         let found = undefined;
         const L = MAIN.get_line(V, EL_map, D, X);
         if (L == undefined) { return undefined; }
-        const [xi, di] = L;
+        const [xi, di, P] = L;
         for (let i = 0; i < EL.length; ++i) {
             if (ES[i]) { continue; }
             const [xj, dj] = EL[i];
@@ -239,14 +239,11 @@ const MAIN = {
         const line = [[X[xi], Y[xi]], D[di]];
         const [EV2, EA2, ES2, V2] = MAIN.EV_EA_V_line_eps_2_EV2_EA2_ES2_V2(EV, EA, V, line);
         const [C2, VC2] = MAIN.V_2_C_VC(V2, eps);
-        console.log(V2);
-        console.log(C2);
-        console.log(VC2);
-        const FOLD2 = {C: C2, VC: VC2, EV: EV2, EA: EA2, ES: ES2};
+        const FOLD2 = {C: C2, VC: VC2, EV: EV2, EA: EA2, ES: ES2, P};
         return FOLD2;
     },
     update: (FOLD, svg) => {
-        const {C, VC, EV, EA, ES} = FOLD;
+        const {C, VC, EV, EA, ES, P} = FOLD;
         SVG.append("rect", svg, {
             x: 0,
             y: 0,
@@ -264,6 +261,11 @@ const MAIN = {
             id: "flat_e_boundary", stroke: MAIN.color.R,
             stroke_width: 1, filter: i => ES[i],
         });
+        if (P != undefined) {
+            SVG.draw_points(svg, P.map(i => V[i]), {
+                id: "flat_p", fill: MAIN.color.R, r: 10,
+            });
+        }
     },
     get_line: (P, EL_map, D, X) => {
         const check = ([[x, y], d]) => {
@@ -291,8 +293,17 @@ const MAIN = {
                     const d = M.dot(m, u);
                     const L = MAIN.normalize_line([u, d]);
                     const out = check(L);
-                    if (out != undefined) { return out; }
+                    if (out != undefined) {
+                        out.push([i1, i2]);
+                        return out;
+                    }
                 }
+            }
+        }
+        for (let i1 = 0; i1 < n; ++i1) {
+            const a = P[i1];
+            for (let i2 = i1 + 1; i2 < n; ++i2) {
+                const b = P[i2];
                 for (let i3 = i2 + 1; i3 < n; ++i3) {
                     const c = P[i3];
                     for (const [a1, b1, c1] of [
@@ -309,14 +320,20 @@ const MAIN = {
                                 const d = M.dot(b1, v);
                                 const L = MAIN.normalize_line([v, d]);
                                 const out = check(L);
-                                if (out != undefined) { return out; }
+                                if (out != undefined) {
+                                    out.push([i1, i2, i3]);
+                                    return out;
+                                }
                             }
                             {   // through A perpendicular to BC
                                 const u = M.unit(M.sub(c1, b1));
                                 const d = M.dot(a1, u);
                                 const L = MAIN.normalize_line([u, d]);
                                 const out = check(L);
-                                if (out != undefined) { return out; }
+                                if (out != undefined) {
+                                    out.push([i1, i2, i3]);
+                                    return out;
+                                }
                             }
                         } else {
                             {   // through A perpendicular to BC
@@ -324,7 +341,10 @@ const MAIN = {
                                 const d = M.dot(a1, u);
                                 const L = MAIN.normalize_line([u, d]);
                                 const out = check(L);
-                                if (out != undefined) { return out; }
+                                if (out != undefined) {
+                                    out.push([i1, i2, i3]);
+                                    return out;
+                                }
                             }
                         }
                     }
