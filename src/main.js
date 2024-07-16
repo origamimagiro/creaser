@@ -1,10 +1,6 @@
 import { M } from "./flatfolder/math.js";
 import { NOTE } from "./flatfolder/note.js";
 import { SVG } from "./flatfolder/svg.js";
-import { IO } from "./flatfolder/io.js";
-import { X } from "./flatfolder/conversion.js";
-import { SOLVER } from "./flatfolder/solver.js";
-import { CON } from "./flatfolder/constraints.js";
 
 window.onload = () => { MAIN.startup(); };  // entry point
 
@@ -22,7 +18,6 @@ const MAIN = {
         s: SVG.SCALE,
     },
     startup: () => {
-        CON.build();
         NOTE.clear_log();
         NOTE.start("*** Starting Creaser ***");
         NOTE.time("Initializing interface");
@@ -115,12 +110,7 @@ const MAIN = {
             }
             EL[i2][1] = D.length - 1;
         }
-        const ES = EL.map(([xi, di]) => (
-            ((Math.abs(X[xi]) < EPS) ||
-            (Math.abs(X[xi] - 1) < EPS)) &&
-            ((Math.abs(D[di]) < EPS) ||
-            (Math.abs(D[di] - 1) < EPS))
-        ));
+        const ES = EAi.map(a => (a == "B"));
         const Y = X.map(x => (1 - x*x)**0.5);
         const target = {C, VC, X, Y, D, EL, ES, EV: EVi, EA: EAi};
         console.log(target);
